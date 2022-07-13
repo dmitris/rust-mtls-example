@@ -20,6 +20,11 @@ async fn run_server() {
         .await
 }
 
+// curl version:
+// $ curl -key ca/client_0.pem -cert ca/client_0.crt -cacert ca/ca.crt https://localhost:3030
+// [...]
+// Hello, mTLS World!
+
 async fn run_client() -> Result<(), reqwest::Error> {
     // let server_ca_file_loc = CA_CERT_FILE;
     let server_ca_file_loc = "ca/ca.crt";
@@ -53,6 +58,7 @@ async fn run_client() -> Result<(), reqwest::Error> {
     let client = reqwest::Client::builder()
         .tls_built_in_root_certs(false)
         .add_root_certificate(cacert)
+        .min_tls_version(reqwest::tls::Version::TLS_1_0)
         // .danger_accept_invalid_certs(true) // uncommenting this fixes the issue, but... not a safe thing to do
         .identity(identity)
         .https_only(true)
