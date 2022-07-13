@@ -6,12 +6,7 @@ use tokio::io::AsyncReadExt;
 use reqwest::tls::Identity;
 use warp::Filter;
 
-// use std::io::Error;
-// use std::path::Path;
-
-const CA_CERT_FILE : &str = "/Users/dsavints/.athenz/ca.cert.pem";
-const TLS_KEY_FILE : &str = "/Users/dsavints/.athenz/keycert";
-
+const TLS_KEY_FILE : &str = "ca/client_0.pem";
 
 async fn run_server() {
     let routes = warp::any().map(|| "Hello, mTLS World!");
@@ -20,13 +15,14 @@ async fn run_server() {
         .tls()
         .key_path("ca/localhost.key")
         .cert_path("ca/localhost.bundle.crt")
-        .client_auth_required_path("ca/second_ca.crt")
+        // .client_auth_required_path("ca/second_ca.crt")
         .run(([0, 0, 0, 0], 3030))
         .await
 }
 
 async fn run_client() -> Result<(), reqwest::Error> {
-    let server_ca_file_loc = CA_CERT_FILE;
+    // let server_ca_file_loc = CA_CERT_FILE;
+    let server_ca_file_loc = "ca/ca.crt";
     let mut buf = Vec::new();
     File::open(server_ca_file_loc)
         .await
@@ -35,19 +31,6 @@ async fn run_client() -> Result<(), reqwest::Error> {
         .await
         .unwrap();
     let cacert = reqwest::Certificate::from_pem(&buf)?;
-
-    // #[cfg(feature = "native-tls")]
-    // async fn get_identity() -> Identity {
-    //     let client_p12_file_loc = CA_CERT_FILE;
-    //     let mut buf = Vec::new();
-    //     File::open(client_p12_file_loc)
-    //         .await
-    //         .unwrap()
-    //         .read_to_end(&mut buf)
-    //         .await
-    //         .unwrap();
-    //     reqwest::Identity::from_pkcs12_der(&buf, "123456").unwrap()
-    // }
 
     // #[cfg(feature = "rustls-tls")]
     async fn get_identity() -> Identity {
@@ -60,7 +43,7 @@ async fn run_client() -> Result<(), reqwest::Error> {
             .read_to_end(&mut buf)
             .await {
                 Ok(_) => (),
-                Err(e) => panic!("{e}"),
+                Err(e) => panic!("{}", e),
             }
         reqwest::Identity::from_pem(&buf).unwrap()
     }
@@ -70,6 +53,7 @@ async fn run_client() -> Result<(), reqwest::Error> {
     let client = reqwest::Client::builder()
         .tls_built_in_root_certs(false)
         .add_root_certificate(cacert)
+        // .danger_accept_invalid_certs(true) // uncommenting this fixes the issue, but... not a safe thing to do
         .identity(identity)
         .https_only(true)
         .build()?;
@@ -81,33 +65,8 @@ async fn run_client() -> Result<(), reqwest::Error> {
     Ok(())
 }
 
-// async fn check_path() -> Result<String, std::io::Error> {
-//     // Create a path to the desired file
-//     let path = Path::new(CA_CERT_FILE);
-//     let display = path.display();
-
-//     // Open the path in read-only mode, returns `io::Result<File>`
-//     let mut file = match File::open(&path).await {
-//         Err(why) => panic!("couldn't open {}: {}", display, why),
-//         Ok(file) => file,
-//     };
-
-//     // Read the file contents into a string, returns `io::Result<usize>`
-//     let mut s = String::new();
-//     match file.read_to_string(&mut s).await {
-//         Err(e) => Err(e),
-//         Ok(_) => Ok(s),
-//     }
-
-//     // `file` goes out of scope, and the file gets closed
-// }
-
 #[tokio::main]
 async fn main() {
-    // match check_path().await {
-    //     Err(why) => panic!("couldn't read file: {}", why),
-    //     Ok(s) => print!("CA file contains:\n{}", s),
-    // }
     let args: Vec<String> = env::args().collect();
     if args[1] == "server" {
         let server = run_server();
